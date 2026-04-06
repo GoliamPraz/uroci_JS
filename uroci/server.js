@@ -4,7 +4,6 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-let isConnected = false;
 
 // Middleware
 app.use(cors());
@@ -17,7 +16,8 @@ const User = require('./models/User');
 
 // Свързване с MongoDB
 async function connectToDatabase() {
-    if (isConnected) {
+    // 1 = connected, 2 = connecting — skip if already up
+    if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
         return;
     }
 
@@ -25,8 +25,11 @@ async function connectToDatabase() {
         throw new Error('MONGODB_URI is not set');
     }
 
-    await mongoose.connect(process.env.MONGODB_URI);
-    isConnected = true;
+    await mongoose.connect(process.env.MONGODB_URI, {
+        bufferCommands: false,
+        serverSelectionTimeoutMS: 8000,
+        socketTimeoutMS: 10000
+    });
     console.log('✓ Connected to MongoDB');
 }
 
