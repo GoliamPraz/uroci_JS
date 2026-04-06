@@ -536,17 +536,249 @@
     }
 ];
 
+const TARGET_TASKS_PER_CLASS = 10;
+
+function getDifficultyByPosition(position, total) {
+    const easyLimit = Math.ceil(total * 0.4);
+    const mediumLimit = Math.ceil(total * 0.7);
+
+    if (position <= easyLimit) return 'easy';
+    if (position <= mediumLimit) return 'medium';
+    return 'hard';
+}
+
+function expandTasksToTen(tasks) {
+    const sourceTasks = tasks.map(task => JSON.parse(JSON.stringify(task)));
+    const expanded = [];
+
+    for (let i = 0; i < TARGET_TASKS_PER_CLASS; i++) {
+        const base = sourceTasks[i % sourceTasks.length];
+        const task = JSON.parse(JSON.stringify(base));
+        const position = i + 1;
+
+        task.id = position;
+        task.difficulty = getDifficultyByPosition(position, TARGET_TASKS_PER_CLASS);
+        task.rating = Number((2 + ((position - 1) * (3.5 / (TARGET_TASKS_PER_CLASS - 1)))).toFixed(2));
+        task.title = `${base.title} - Ниво ${position}`;
+        task.description = `${base.description} (Ниво ${position} от ${TARGET_TASKS_PER_CLASS})`;
+
+        expanded.push(task);
+    }
+
+    return expanded;
+}
+
+classes.forEach((cls) => {
+    cls.tasks = expandTasksToTen(cls.tasks);
+});
+
+const baseClassesForTranslation = JSON.parse(JSON.stringify(classes));
+
 let currentClassId = 1;
-const STORAGE_TASKS_KEY = "tasks";
-const STORAGE_CURRENT_CLASS_KEY = "currentClassId";
 const API_URL = '/api';
-const DEFAULT_USER_ID = localStorage.getItem('userId') || 'user_' + Math.random().toString(36).substr(2, 9);
+let currentUserId = localStorage.getItem('userId') || '';
+let currentUsername = localStorage.getItem('username') || '';
+const taskHelpUsage = {};
+let currentLanguage = localStorage.getItem('lang') || 'bg';
+
+const uiTranslations = {
+    bg: {
+        authTitle: 'Вход / Регистрация',
+        authSubtitle: 'Влизане само с никнейм и парола. Данните и прогресът се записват в MongoDB Atlas.',
+        usernamePlaceholder: 'Потребителско име',
+        passwordPlaceholder: 'Парола (мин. 3 символа)',
+        registerBtn: 'Регистрация',
+        loginBtn: 'Вход',
+        switchUserBtn: 'Смени потребител',
+        resetBtn: 'Нулиране на прогреса',
+        progress: 'Прогрес',
+        user: 'Потребител',
+        tasksTitle: 'Задачи',
+        easy: 'Лесни',
+        medium: 'Средни',
+        hard: 'Завършващи',
+        codeLabel: 'Код',
+        checkBtn: 'Провери',
+        resetCodeBtn: 'Нулирай',
+        solution1: 'Решение 1',
+        solution2: 'Решение 2',
+        solution3: 'Решение 3',
+        usedHelp: 'Използвана помощ',
+        noHelp: 'без помощ',
+        willUse: 'Ще ползваш',
+        avgGrade: 'Среден успех',
+        canAdvance: 'Имаш нужния бал. Може да продължиш.',
+        needMore: 'Трябва средно над 4.00 и всички задачи да са решени.',
+        nextClass: 'Напред към следващ клас',
+        finish: 'Край',
+        repeatClass: 'Повтори класа',
+        repeatConfirm: 'Сигурен ли си, че искаш да повториш класа? Това ще изчисти резултатите за този клас.',
+        resetConfirm: 'Нулирай целия прогрес?',
+        perfect: '✓ Всички тестове преминаха! Оценка',
+        testsFail: 'тестове',
+        accuracy: 'Точност',
+        grade: 'Оценка',
+        max: 'макс',
+        input: 'Вход',
+        expected: 'Очаквано',
+        got: 'Получено',
+        similarity: 'Близост',
+        helpApplied: 'Подадено е Решение',
+        helpMaxGrade: 'Оценката за тази задача ще е с максимум',
+        loginPrompt: 'Регистрирай нов потребител, за да продължиш.',
+        learnForClass: 'Подробно преподаване за',
+        beforeTasks: 'Преди задачите мини през следните стъпки:',
+        lessonStep1: 'Разбиране: Прочети теорията и преформулирай с твои думи какво прави функцията.',
+        lessonStep2: 'План: Запиши на хартия вход, обработка и резултат (input -> logic -> return).',
+        lessonStep3: 'Имплементация: Започни от най-простия тест и после добавяй още проверки.',
+        lessonStep4: 'Проверка: Сравни полученото с очакваното и редактирай само проблемната част.',
+        keywordsForClass: 'Кодове и конструкции в този клас:'
+    },
+    en: {
+        authTitle: 'Login / Register', authSubtitle: 'Login only with username and password. Data and progress are saved in MongoDB Atlas.', usernamePlaceholder: 'Username', passwordPlaceholder: 'Password (min. 3 chars)', registerBtn: 'Register', loginBtn: 'Login', switchUserBtn: 'Switch user', resetBtn: 'Reset progress', progress: 'Progress', user: 'User', tasksTitle: 'Tasks', easy: 'Easy', medium: 'Medium', hard: 'Advanced', codeLabel: 'Code', checkBtn: 'Check', resetCodeBtn: 'Reset', solution1: 'Solution 1', solution2: 'Solution 2', solution3: 'Solution 3', usedHelp: 'Help used', noHelp: 'no help', willUse: 'You will use', avgGrade: 'Average grade', canAdvance: 'You have enough score. You can continue.', needMore: 'You need average above 4.00 and all tasks solved.', nextClass: 'Next class', finish: 'Finish', repeatClass: 'Repeat class', repeatConfirm: 'Are you sure you want to repeat this class? This will clear results for this class.', resetConfirm: 'Reset all progress?', perfect: '✓ All tests passed! Grade', testsFail: 'tests', accuracy: 'Accuracy', grade: 'Grade', max: 'max', input: 'Input', expected: 'Expected', got: 'Got', similarity: 'Similarity', helpApplied: 'Applied Solution', helpMaxGrade: 'Max grade for this task is', loginPrompt: 'Register a new user to continue.', learnForClass: 'Detailed lesson for', beforeTasks: 'Before tasks, follow these steps:', lessonStep1: 'Understand: Read the theory and restate what the function does.', lessonStep2: 'Plan: Write input, logic, and output (input -> logic -> return).', lessonStep3: 'Implement: Start with easiest test, then add checks.', lessonStep4: 'Review: Compare actual vs expected and edit only the failing part.', keywordsForClass: 'Code patterns and constructs in this class:'
+    },
+    ru: {
+        authTitle: 'Вход / Регистрация', authSubtitle: 'Вход только с никнеймом и паролем. Данные и прогресс сохраняются в MongoDB Atlas.', usernamePlaceholder: 'Никнейм', passwordPlaceholder: 'Пароль (мин. 3 символа)', registerBtn: 'Регистрация', loginBtn: 'Вход', switchUserBtn: 'Сменить пользователя', resetBtn: 'Сброс прогресса', progress: 'Прогресс', user: 'Пользователь', tasksTitle: 'Задания', easy: 'Легкие', medium: 'Средние', hard: 'Сложные', codeLabel: 'Код', checkBtn: 'Проверить', resetCodeBtn: 'Сбросить', solution1: 'Решение 1', solution2: 'Решение 2', solution3: 'Решение 3', usedHelp: 'Использована помощь', noHelp: 'без помощи', willUse: 'Будешь использовать', avgGrade: 'Средняя оценка', canAdvance: 'Балла достаточно. Можно перейти дальше.', needMore: 'Нужен средний балл выше 4.00 и все задания решены.', nextClass: 'Следующий класс', finish: 'Конец', repeatClass: 'Повторить класс', repeatConfirm: 'Повторить класс? Результаты этого класса будут очищены.', resetConfirm: 'Сбросить весь прогресс?', perfect: '✓ Все тесты пройдены! Оценка', testsFail: 'тестов', accuracy: 'Точность', grade: 'Оценка', max: 'макс', input: 'Ввод', expected: 'Ожидалось', got: 'Получено', similarity: 'Близость', helpApplied: 'Применено Решение', helpMaxGrade: 'Максимальная оценка для задания', loginPrompt: 'Зарегистрируй нового пользователя, чтобы продолжить.', learnForClass: 'Подробное обучение для', beforeTasks: 'Перед заданиями пройди шаги:', lessonStep1: 'Понимание: Прочитай теорию и объясни функцию своими словами.', lessonStep2: 'План: Запиши вход, логику и результат (input -> logic -> return).', lessonStep3: 'Реализация: Начни с простого теста, затем добавляй проверки.', lessonStep4: 'Проверка: Сравни результат с ожидаемым и исправь только проблемную часть.', keywordsForClass: 'Ключевые конструкции в этом классе:'
+    },
+    de: {
+        authTitle: 'Login / Registrierung', authSubtitle: 'Login nur mit Benutzername und Passwort. Daten und Fortschritt werden in MongoDB Atlas gespeichert.', usernamePlaceholder: 'Benutzername', passwordPlaceholder: 'Passwort (mind. 3 Zeichen)', registerBtn: 'Registrieren', loginBtn: 'Login', switchUserBtn: 'Benutzer wechseln', resetBtn: 'Fortschritt zurücksetzen', progress: 'Fortschritt', user: 'Benutzer', tasksTitle: 'Aufgaben', easy: 'Leicht', medium: 'Mittel', hard: 'Schwer', codeLabel: 'Code', checkBtn: 'Prüfen', resetCodeBtn: 'Zurücksetzen', solution1: 'Lösung 1', solution2: 'Lösung 2', solution3: 'Lösung 3', usedHelp: 'Genutzte Hilfe', noHelp: 'keine Hilfe', willUse: 'Du verwendest', avgGrade: 'Durchschnittsnote', canAdvance: 'Du hast genug Punkte. Du kannst weitergehen.', needMore: 'Du brauchst einen Schnitt über 4.00 und alle Aufgaben gelöst.', nextClass: 'Nächste Klasse', finish: 'Ende', repeatClass: 'Klasse wiederholen', repeatConfirm: 'Klasse wiederholen? Die Ergebnisse dieser Klasse werden gelöscht.', resetConfirm: 'Gesamten Fortschritt zurücksetzen?', perfect: '✓ Alle Tests bestanden! Note', testsFail: 'Tests', accuracy: 'Genauigkeit', grade: 'Note', max: 'max', input: 'Eingabe', expected: 'Erwartet', got: 'Erhalten', similarity: 'Ähnlichkeit', helpApplied: 'Lösung angewendet', helpMaxGrade: 'Maximale Note für diese Aufgabe', loginPrompt: 'Registriere einen neuen Benutzer, um fortzufahren.', learnForClass: 'Detaillierte Lektion für', beforeTasks: 'Vor den Aufgaben, folge diesen Schritten:', lessonStep1: 'Verstehen: Lies die Theorie und formuliere die Funktion in eigenen Worten.', lessonStep2: 'Plan: Notiere Input, Logik und Output (input -> logic -> return).', lessonStep3: 'Umsetzung: Starte mit dem einfachsten Test und erweitere schrittweise.', lessonStep4: 'Prüfen: Vergleiche Ergebnis und Erwartung und ändere nur den fehlerhaften Teil.', keywordsForClass: 'Wichtige Konstrukte in dieser Klasse:'
+    },
+    es: {
+        authTitle: 'Inicio / Registro', authSubtitle: 'Inicio solo con usuario y contrasena. Los datos y el progreso se guardan en MongoDB Atlas.', usernamePlaceholder: 'Usuario', passwordPlaceholder: 'Contrasena (min. 3 caracteres)', registerBtn: 'Registro', loginBtn: 'Entrar', switchUserBtn: 'Cambiar usuario', resetBtn: 'Reiniciar progreso', progress: 'Progreso', user: 'Usuario', tasksTitle: 'Tareas', easy: 'Faciles', medium: 'Medias', hard: 'Avanzadas', codeLabel: 'Codigo', checkBtn: 'Comprobar', resetCodeBtn: 'Reiniciar', solution1: 'Solucion 1', solution2: 'Solucion 2', solution3: 'Solucion 3', usedHelp: 'Ayuda usada', noHelp: 'sin ayuda', willUse: 'Vas a usar', avgGrade: 'Nota media', canAdvance: 'Tienes la puntuacion necesaria. Puedes continuar.', needMore: 'Necesitas promedio superior a 4.00 y todas las tareas resueltas.', nextClass: 'Siguiente clase', finish: 'Final', repeatClass: 'Repetir clase', repeatConfirm: 'Quieres repetir la clase? Se borraran los resultados de esta clase.', resetConfirm: 'Reiniciar todo el progreso?', perfect: '✓ Todos los tests pasaron! Nota', testsFail: 'tests', accuracy: 'Precision', grade: 'Nota', max: 'max', input: 'Entrada', expected: 'Esperado', got: 'Obtenido', similarity: 'Cercania', helpApplied: 'Se aplico Solucion', helpMaxGrade: 'La nota maxima para esta tarea es', loginPrompt: 'Registra un nuevo usuario para continuar.', learnForClass: 'Leccion detallada para', beforeTasks: 'Antes de las tareas, sigue estos pasos:', lessonStep1: 'Comprende: Lee la teoria y explica con tus palabras la funcion.', lessonStep2: 'Plan: Escribe entrada, logica y salida (input -> logic -> return).', lessonStep3: 'Implementa: Empieza con el test mas facil y agrega validaciones.', lessonStep4: 'Revisa: Compara resultado con esperado y corrige solo la parte con error.', keywordsForClass: 'Patrones y construcciones de este tema:'
+    }
+};
+
+const translationCache = JSON.parse(localStorage.getItem('translationCache') || '{}');
+
+function getTasksStorageKey() {
+    return `tasks_${currentUserId}`;
+}
+
+function getCurrentClassStorageKey() {
+    return `currentClassId_${currentUserId}`;
+}
+
+function t(key) {
+    return (uiTranslations[currentLanguage] && uiTranslations[currentLanguage][key]) || uiTranslations.bg[key] || key;
+}
+
+function saveTranslationCache() {
+    localStorage.setItem('translationCache', JSON.stringify(translationCache));
+}
+
+async function safeReadJson(response) {
+    try {
+        const text = await response.text();
+        if (!text || !text.trim()) return null;
+        return JSON.parse(text);
+    } catch (error) {
+        return null;
+    }
+}
+
+async function translateText(text, targetLanguage) {
+    if (!text || targetLanguage === 'bg') return text;
+
+    const langCache = translationCache[targetLanguage] || {};
+    if (langCache[text]) return langCache[text];
+
+    try {
+        const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=bg&tl=${targetLanguage}&dt=t&q=${encodeURIComponent(text)}`);
+        if (!response.ok) return text;
+        const data = await safeReadJson(response);
+        if (!data) return text;
+        const translated = Array.isArray(data?.[0]) ? data[0].map(part => part[0]).join('') : text;
+        translationCache[targetLanguage] = translationCache[targetLanguage] || {};
+        translationCache[targetLanguage][text] = translated;
+        saveTranslationCache();
+        return translated;
+    } catch (error) {
+        return text;
+    }
+}
+
+async function translateHtmlPreservingTags(html, targetLanguage) {
+    if (targetLanguage === 'bg') return html;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+        const value = currentNode.nodeValue;
+        if (value && value.trim()) {
+            nodes.push(currentNode);
+        }
+        currentNode = walker.nextNode();
+    }
+
+    for (const node of nodes) {
+        node.nodeValue = await translateText(node.nodeValue, targetLanguage);
+    }
+
+    return doc.body.innerHTML;
+}
+
+async function localizeClasses(targetLanguage) {
+    for (let c = 0; c < classes.length; c++) {
+        const cls = classes[c];
+        const baseCls = baseClassesForTranslation[c];
+
+        cls.name = await translateText(baseCls.name, targetLanguage);
+        cls.description = await translateText(baseCls.description, targetLanguage);
+        cls.theory = await translateHtmlPreservingTags(baseCls.theory, targetLanguage);
+
+        for (let i = 0; i < cls.tasks.length; i++) {
+            const task = cls.tasks[i];
+            const baseTask = baseCls.tasks[i];
+            task.title = await translateText(baseTask.title, targetLanguage);
+            task.description = await translateText(baseTask.description, targetLanguage);
+            task.signature = await translateText(baseTask.signature, targetLanguage);
+            task.hint = await translateText(baseTask.hint, targetLanguage);
+            task.expectedResults = await translateText(baseTask.expectedResults, targetLanguage);
+        }
+    }
+}
+
+function updateStaticTexts() {
+    document.getElementById('authTitle').textContent = t('authTitle');
+    document.getElementById('authSubtitle').textContent = t('authSubtitle');
+    document.getElementById('usernameInput').placeholder = t('usernamePlaceholder');
+    document.getElementById('passwordInput').placeholder = t('passwordPlaceholder');
+    document.getElementById('registerBtn').textContent = t('registerBtn');
+    document.getElementById('loginBtn').textContent = t('loginBtn');
+    document.getElementById('switchUserBtn').textContent = t('switchUserBtn');
+    document.getElementById('resetBtn').textContent = t('resetBtn');
+    document.getElementById('userProgress').textContent = `${t('progress')}: 0%`;
+    const activeUser = document.getElementById('activeUser');
+    if (currentUsername) {
+        activeUser.textContent = `${t('user')}: ${currentUsername}`;
+    }
+}
+
+async function setLanguage(language) {
+    currentLanguage = language;
+    localStorage.setItem('lang', currentLanguage);
+    updateStaticTexts();
+    await localizeClasses(currentLanguage);
+
+    if (!document.getElementById('appMain').classList.contains('hidden')) {
+        renderClasses();
+        renderClass(currentClassId);
+        updateProgress();
+    }
+}
 
 // MongoDB API Functions
 async function loadProgressFromDB() {
+    if (!currentUserId) return [];
+
     try {
-        const response = await fetch(`${API_URL}/progress/${DEFAULT_USER_ID}`);
-        const progress = await response.json();
+        const response = await fetch(`${API_URL}/progress/${currentUserId}`);
+        const progress = await safeReadJson(response);
+        if (!progress) return [];
         return progress.completedLessons || [];
     } catch (err) {
         console.warn('MongoDB unavailable, using localStorage:', err.message);
@@ -555,13 +787,10 @@ async function loadProgressFromDB() {
 }
 
 async function saveProgressToDB(lessonId, taskId, lessonTitle) {
-    try {
-        const completedTasks = classes
-            .find(c => c.id === lessonId)
-            ?.tasks.filter(t => t.completed)
-            .map(t => t.id) || [];
+    if (!currentUserId) return;
 
-        const response = await fetch(`${API_URL}/progress/${DEFAULT_USER_ID}/complete-task`, {
+    try {
+        const response = await fetch(`${API_URL}/progress/${currentUserId}/complete-task`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -570,7 +799,7 @@ async function saveProgressToDB(lessonId, taskId, lessonTitle) {
                 lessonTitle
             })
         });
-        const result = await response.json();
+        const result = await safeReadJson(response);
         console.log('✓ Прогреса запазен в MongoDB:', result);
     } catch (err) {
         console.warn('MongoDB save failed, using localStorage:', err.message);
@@ -578,16 +807,78 @@ async function saveProgressToDB(lessonId, taskId, lessonTitle) {
 }
 
 async function resetProgressInDB() {
+    if (!currentUserId) return;
+
     try {
-        await fetch(`${API_URL}/progress/${DEFAULT_USER_ID}`, { method: 'DELETE' });
+        await fetch(`${API_URL}/progress/${currentUserId}`, { method: 'DELETE' });
         console.log('✓ Прогреса изтрит от MongoDB');
     } catch (err) {
         console.warn('MongoDB delete failed:', err.message);
     }
 }
 
-function initApp() {
-    localStorage.setItem('userId', DEFAULT_USER_ID);
+async function registerUser(username, password) {
+    const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+
+    const payload = await safeReadJson(response) || {};
+    if (!response.ok) {
+        throw new Error(payload.error || 'Registration failed');
+    }
+
+    return payload;
+}
+
+async function loginUser(username, password) {
+    const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+
+    const payload = await safeReadJson(response) || {};
+    if (!response.ok) {
+        throw new Error(payload.error || 'Login failed');
+    }
+
+    return payload;
+}
+
+function setActiveUser(user) {
+    currentUserId = user.userId;
+    currentUsername = user.username;
+    localStorage.setItem('userId', currentUserId);
+    localStorage.setItem('username', currentUsername);
+    const activeUserEl = document.getElementById('activeUser');
+    activeUserEl.textContent = `${t('user')}: ${currentUsername}`;
+}
+
+function showApp() {
+    document.getElementById('authSection').classList.add('hidden');
+    document.getElementById('appMain').classList.remove('hidden');
+}
+
+function showRegisterForm(message = '') {
+    document.getElementById('authSection').classList.remove('hidden');
+    document.getElementById('appMain').classList.add('hidden');
+    document.getElementById('authMessage').textContent = message;
+}
+
+async function initApp() {
+    document.getElementById('languageSelect').value = currentLanguage;
+    await setLanguage(currentLanguage);
+
+    if (!currentUserId) {
+        showRegisterForm();
+        return;
+    }
+
+    setActiveUser({ userId: currentUserId, username: currentUsername || 'User' });
+    showApp();
+
     restoreProgressState();
     renderClasses();
     renderClass(currentClassId);
@@ -627,12 +918,17 @@ function renderClass(classId) {
     theorySection.className = "theory-section";
     theorySection.innerHTML = cls.theory;
     content.appendChild(theorySection);
+
+    const deepLessonSection = document.createElement("div");
+    deepLessonSection.className = "deep-lesson";
+    deepLessonSection.innerHTML = renderDetailedLesson(cls);
+    content.appendChild(deepLessonSection);
     
     const tasksSection = document.createElement("div");
     tasksSection.className = "tasks-section";
     
     const title = document.createElement("h2");
-    title.textContent = "Задачи";
+    title.textContent = t('tasksTitle');
     tasksSection.appendChild(title);
     
     const groups = { easy: [], medium: [], hard: [] };
@@ -646,7 +942,7 @@ function renderClass(classId) {
         
         const label = document.createElement("div");
         label.className = `difficulty-label ${difficulty}`;
-        label.textContent = difficulty === "easy" ? "Лесни" : difficulty === "medium" ? "Средни" : "Завършващи";
+        label.textContent = difficulty === "easy" ? t('easy') : difficulty === "medium" ? t('medium') : t('hard');
         group.appendChild(label);
         
         groups[difficulty].forEach(task => {
@@ -669,6 +965,9 @@ function renderTask(task, cls) {
     if (saved && saved.passed) card.classList.add("completed");
     
     const savedCode = saved && saved.code ? saved.code : task.starter;
+    const codeUsageHint = getCodeUsageHint(task);
+    const taskKey = getTaskKey(cls.id, task.id);
+    const usedHelpLevel = taskHelpUsage[taskKey] || (saved?.helpLevel || 0);
 
     card.innerHTML = `
         <div class="task-header">
@@ -676,24 +975,143 @@ function renderTask(task, cls) {
             <div class="task-rating">Оц: ${task.rating.toFixed(2)}</div>
         </div>
         <div class="task-description">${task.description}</div>
+        <div class="task-code-usage"><strong>${t('willUse')}:</strong> ${codeUsageHint}</div>
         <div class="task-signature">${task.signature}</div>
         <div class="code-editor">
-            <label>Код:</label>
+            <label>${t('codeLabel')}:</label>
             <textarea id="code-${task.id}" class="task-code">${savedCode}</textarea>
         </div>
         <div class="task-buttons">
-            <button class="btn btn-check" onclick="checkTask(${cls.id}, ${task.id})">Провери</button>
-            <button class="btn btn-reset-code" onclick="resetCode(${task.id}, ${cls.id})">Нулирай</button>
-            <button class="btn btn-solution" onclick="toggleSolution(${task.id})">Решение</button>
+            <button class="btn btn-check" onclick="checkTask(${cls.id}, ${task.id})">${t('checkBtn')}</button>
+            <button class="btn btn-reset-code" onclick="resetCode(${task.id}, ${cls.id})">${t('resetCodeBtn')}</button>
+            <button class="btn btn-solution btn-solution-l1" onclick="applySolutionLevel(${cls.id}, ${task.id}, 1)">${t('solution1')}</button>
+            <button class="btn btn-solution btn-solution-l2" onclick="applySolutionLevel(${cls.id}, ${task.id}, 2)">${t('solution2')}</button>
+            <button class="btn btn-solution btn-solution-l3" onclick="applySolutionLevel(${cls.id}, ${task.id}, 3)">${t('solution3')}</button>
         </div>
+        <div class="help-level-info">${t('usedHelp')}: ${usedHelpLevel === 0 ? t('noHelp') : `${t('solution1').split(' ')[0]} ${usedHelpLevel}`}</div>
         <div class="result-message" id="result-${task.id}"></div>
         <div class="test-results" id="tests-${task.id}"></div>
-        <div class="solution-box" id="solution-${task.id}">
-            <h4>Решение:</h4>
-            <div class="solution-code">${task.solution}</div>
-        </div>
     `;
     return card;
+}
+
+function renderDetailedLesson(cls) {
+    const keyPatterns = [...new Set(
+        cls.tasks
+            .map(task => getCodeUsageHint(task))
+            .filter(Boolean)
+    )];
+
+    return `
+        <h3>${t('learnForClass')} ${cls.name}</h3>
+        <p>${t('beforeTasks')}</p>
+        <ol>
+            <li><strong>1)</strong> ${t('lessonStep1')}</li>
+            <li><strong>2)</strong> ${t('lessonStep2')}</li>
+            <li><strong>3)</strong> ${t('lessonStep3')}</li>
+            <li><strong>4)</strong> ${t('lessonStep4')}</li>
+        </ol>
+        <div class="lesson-keywords">
+            <strong>${t('keywordsForClass')}</strong>
+            <ul>
+                ${keyPatterns.map(pattern => `<li>${pattern}</li>`).join('')}
+            </ul>
+        </div>
+    `;
+}
+
+function getCodeUsageHint(task) {
+    if (!task || !task.hint) return 'основна функция, return и променливи';
+    const normalized = String(task.hint).split('|')[0].trim();
+    return normalized || 'основна функция, return и променливи';
+}
+
+function getTaskKey(classId, taskId) {
+    return `${classId}-${taskId}`;
+}
+
+function getTaskCoreTokens(task) {
+    const tokens = new Set();
+    const source = `${task.hint || ''} ${task.signature || ''} ${task.solution || ''}`;
+    const functionName = String(task.signature || '').split('(')[0].trim();
+
+    const matches = source.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+    const ignore = new Set([
+        'function', 'return', 'if', 'else', 'for', 'while', 'const', 'let', 'var',
+        'true', 'false', 'null', 'undefined'
+    ]);
+
+    matches.forEach((token) => {
+        if (ignore.has(token)) return;
+        if (token === functionName) return;
+        if (token.length < 2) return;
+        tokens.add(token);
+    });
+
+    return [...tokens];
+}
+
+function makeFillInSolution(task, level) {
+    const solution = String(task.solution || '');
+    if (!solution) return '';
+
+    const lines = solution.split('\n');
+    const coreTokens = getTaskCoreTokens(task);
+    const declarationPattern = /^\s*function\s+[A-Za-z_][A-Za-z0-9_]*\s*\(/;
+
+    return lines.map((line, lineIndex) => {
+        if (lineIndex === 0 && declarationPattern.test(line)) {
+            return line;
+        }
+
+        let masked = line;
+
+        coreTokens.forEach((token, index) => {
+            const shouldMask =
+                (level === 1) ||
+                (level === 2 && index % 1 === 0) ||
+                (level === 3 && index % 2 === 0);
+
+            if (shouldMask) {
+                const rx = new RegExp(`\\b${token}\\b`, 'g');
+                masked = masked.replace(rx, '...');
+            }
+        });
+
+        if (level === 1) {
+            masked = masked
+                .replace(/(\+|\-|\*|\/|===|==|>=|<=|>|<|&&|\|\|)/g, '...')
+                .replace(/\b\d+\b/g, '...');
+        }
+
+        if (level === 2) {
+            masked = masked.replace(/\b\d+\b/g, '...');
+        }
+
+        return masked;
+    }).join('\n');
+}
+
+function applySolutionLevel(classId, taskId, level) {
+    const cls = classes.find(c => c.id === classId);
+    const task = cls.tasks.find(t => t.id === taskId);
+    const editor = document.getElementById(`code-${taskId}`);
+    const res = document.getElementById(`result-${taskId}`);
+
+    const taskKey = getTaskKey(classId, taskId);
+    taskHelpUsage[taskKey] = Math.max(taskHelpUsage[taskKey] || 0, level);
+
+    editor.value = makeFillInSolution(task, level);
+    res.innerHTML = `${t('helpApplied')} ${level}. ${t('helpMaxGrade')} ${getMaxGradeByHelp(taskHelpUsage[taskKey]).toFixed(2)}.`;
+    res.classList.remove('success', 'error');
+    res.classList.add('show');
+}
+
+function getMaxGradeByHelp(helpLevel) {
+    if (helpLevel === 1) return 5;
+    if (helpLevel === 2) return 4;
+    if (helpLevel >= 3) return 3;
+    return 6;
 }
 
 function renderGradeSection(cls) {
@@ -707,16 +1125,43 @@ function renderGradeSection(cls) {
         const s = getSaved(cls.id, t.id);
         return s && s.passed;
     });
+    const minAvgToPass = 4;
+    const canAdvance = allSolved && avg > minAvgToPass;
     
     section.innerHTML = `
-        <div class="grade-info">Среден успех</div>
+        <div class="grade-info">${t('avgGrade')}</div>
         <div class="grade-value">${avg.toFixed(2)}</div>
-        <div class="grade-message">${allSolved ? "Отлично!" : "Решавай още задачи..."}</div>
-        <button class="next-class-btn" onclick="nextClass()" ${!allSolved || avg < 4 ? "disabled" : ""}>
-            ${cls.id < classes.length ? "Напред" : "Край"}
-        </button>
+        <div class="grade-message">${canAdvance ? t('canAdvance') : t('needMore')}</div>
+        ${canAdvance
+            ? `<button class="next-class-btn" onclick="nextClass()">${cls.id < classes.length ? t('nextClass') : t('finish')}</button>`
+            : `<button class="repeat-class-btn" onclick="repeatClass(${cls.id})">${t('repeatClass')}</button>`}
     `;
     return section;
+}
+
+function repeatClass(classId) {
+    const shouldRepeat = confirm(t('repeatConfirm'));
+    if (!shouldRepeat) return;
+
+    const cls = classes.find(c => c.id === classId);
+    if (!cls) return;
+
+    const saved = JSON.parse(localStorage.getItem(getTasksStorageKey()) || "{}");
+
+    cls.tasks.forEach(task => {
+        const key = `${classId}-${task.id}`;
+        delete saved[key];
+        delete taskHelpUsage[key];
+    });
+
+    localStorage.setItem(getTasksStorageKey(), JSON.stringify(saved));
+
+    classes[classId - 1].completed = false;
+    currentClassId = classId;
+    saveCurrentClassId();
+    renderClasses();
+    renderClass(classId);
+    updateProgress();
 }
 
 function checkTask(classId, taskId) {
@@ -736,42 +1181,53 @@ function checkTask(classId, taskId) {
         let pass = 0;
         const results = [];
         
+        let totalSimilarity = 0;
+
         task.tests.forEach(t => {
             try {
                 const out = fn(...t.input);
                 const ok = valuesEqual(out, t.expected);
                 if (ok) pass++;
+                const similarity = getSimilarityScore(out, t.expected);
+                totalSimilarity += similarity;
                 results.push({
                     ok,
                     inp: formatValue(t.input),
                     exp: formatValue(t.expected),
-                    got: formatValue(out)
+                    got: formatValue(out),
+                    similarity
                 });
             } catch (e) {
-                results.push({ ok: false, inp: formatValue(t.input), exp: formatValue(t.expected), got: "Error" });
+                results.push({ ok: false, inp: formatValue(t.input), exp: formatValue(t.expected), got: "Error", similarity: 0 });
             }
         });
-        
-        const grade = (pass / task.tests.length) * 6;
+
+        const taskKey = getTaskKey(classId, taskId);
+        const helpLevel = taskHelpUsage[taskKey] || 0;
+        const maxGrade = getMaxGradeByHelp(helpLevel);
+        const avgSimilarity = totalSimilarity / task.tests.length;
+        const grade = Math.max(2, avgSimilarity * maxGrade);
         const isPassed = pass === task.tests.length;
         
-        saveSolved(classId, taskId, grade, isPassed, code);
+        saveSolved(classId, taskId, grade, isPassed, code, helpLevel);
         saveCurrentClassId();
         
         if (isPassed) {
-            res.innerHTML = "✓ Всички тестове преминаха! Оценка: " + grade.toFixed(2);
+            res.innerHTML = `${t('perfect')}: ${grade.toFixed(2)} (${t('usedHelp')}: ${helpLevel === 0 ? t('noHelp') : `${t('solution1').split(' ')[0]} ${helpLevel}`})`;
             res.classList.add("success", "show");
             document.getElementById("task-" + taskId).classList.add("completed");
+            saveProgressToDB(classId, taskId, cls.name);
         } else {
-            res.innerHTML = "✗ " + pass + "/" + task.tests.length + " тестове. Оценка: " + grade.toFixed(2);
+            res.innerHTML = `✗ ${pass}/${task.tests.length} ${t('testsFail')}. ${t('accuracy')}: ${(avgSimilarity * 100).toFixed(0)}%. ${t('grade')}: ${grade.toFixed(2)} (${t('max')}: ${maxGrade.toFixed(2)})`;
             res.classList.add("error", "show");
         }
         
         tests.innerHTML = results.map(r => `
             <div class="test-result-item ${r.ok ? "pass" : "fail"}">
-                <strong>Вход:</strong> ${r.inp}<br>
-                <strong>Очаквано:</strong> ${r.exp}<br>
-                <strong>Получено:</strong> ${r.got}
+                <strong>${t('input')}:</strong> ${r.inp}<br>
+                <strong>${t('expected')}:</strong> ${r.exp}<br>
+                <strong>${t('got')}:</strong> ${r.got}<br>
+                <strong>${t('similarity')}:</strong> ${(r.similarity * 100).toFixed(0)}%
             </div>
         `).join("");
         tests.classList.add("show");
@@ -807,6 +1263,48 @@ function valuesEqual(a, b) {
     return a === b;
 }
 
+function getSimilarityScore(actual, expected) {
+    if (valuesEqual(actual, expected)) return 1;
+
+    if (typeof actual === 'number' && typeof expected === 'number') {
+        const diff = Math.abs(actual - expected);
+        const scale = Math.max(1, Math.abs(expected));
+        return Math.max(0, 1 - diff / scale);
+    }
+
+    const actualStr = JSON.stringify(actual);
+    const expectedStr = JSON.stringify(expected);
+
+    if (!actualStr || !expectedStr) return 0;
+
+    return stringSimilarity(actualStr, expectedStr);
+}
+
+function stringSimilarity(a, b) {
+    if (a === b) return 1;
+    const m = a.length;
+    const n = b.length;
+    if (!m || !n) return 0;
+
+    const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            dp[i][j] = Math.min(
+                dp[i - 1][j] + 1,
+                dp[i][j - 1] + 1,
+                dp[i - 1][j - 1] + cost
+            );
+        }
+    }
+
+    const maxLen = Math.max(m, n);
+    return Math.max(0, 1 - dp[m][n] / maxLen);
+}
+
 function formatValue(value) {
     if (typeof value === "string") return `"${value}"`;
     if (typeof value === "undefined") return "undefined";
@@ -821,11 +1319,6 @@ function resetCode(taskId, classId) {
     document.getElementById("code-" + taskId).value = task.starter;
 }
 
-function toggleSolution(taskId) {
-    const box = document.getElementById("solution-" + taskId);
-    box.classList.toggle("show");
-}
-
 function nextClass() {
     if (currentClassId < classes.length) {
         classes[currentClassId - 1].completed = true;
@@ -837,34 +1330,34 @@ function nextClass() {
 }
 
 function getSaved(classId, taskId) {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_TASKS_KEY) || "{}");
+    const saved = JSON.parse(localStorage.getItem(getTasksStorageKey()) || "{}");
     return saved[classId + "-" + taskId];
 }
 
-function saveSolved(classId, taskId, grade, passed, code) {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_TASKS_KEY) || "{}");
-    saved[classId + "-" + taskId] = { grade, passed, code };
-    localStorage.setItem(STORAGE_TASKS_KEY, JSON.stringify(saved));
+function saveSolved(classId, taskId, grade, passed, code, helpLevel) {
+    const saved = JSON.parse(localStorage.getItem(getTasksStorageKey()) || "{}");
+    saved[classId + "-" + taskId] = { grade, passed, code, helpLevel };
+    localStorage.setItem(getTasksStorageKey(), JSON.stringify(saved));
 }
 
 function getClassGrades(classId) {
     const cls = classes.find(c => c.id === classId);
-    const saved = JSON.parse(localStorage.getItem(STORAGE_TASKS_KEY) || "{}");
+    const saved = JSON.parse(localStorage.getItem(getTasksStorageKey()) || "{}");
     return cls.tasks
         .map(t => saved[classId + "-" + t.id]?.grade || 0)
         .filter(g => g > 0);
 }
 
 function updateProgress() {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_TASKS_KEY) || "{}");
+    const saved = JSON.parse(localStorage.getItem(getTasksStorageKey()) || "{}");
     const total = classes.reduce((s, c) => s + c.tasks.length, 0);
     const solved = Object.values(saved).filter(t => t.passed).length;
     const pct = Math.round((solved / total) * 100);
-    document.getElementById("userProgress").textContent = "Прогрес: " + pct + "%";
+    document.getElementById("userProgress").textContent = `${t('progress')}: ${pct}%`;
 }
 
 function saveCurrentClassId() {
-    localStorage.setItem(STORAGE_CURRENT_CLASS_KEY, String(currentClassId));
+    localStorage.setItem(getCurrentClassStorageKey(), String(currentClassId));
 }
 
 function getUnlockedMaxClassId() {
@@ -891,21 +1384,77 @@ function getUnlockedMaxClassId() {
 
 function restoreProgressState() {
     const unlockedMax = getUnlockedMaxClassId();
-    const savedCurrent = Number(localStorage.getItem(STORAGE_CURRENT_CLASS_KEY) || "1");
+    const savedCurrent = Number(localStorage.getItem(getCurrentClassStorageKey()) || "1");
     const clamped = Math.max(1, Math.min(savedCurrent, unlockedMax));
     currentClassId = clamped;
 }
 
+document.getElementById("registerForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const username = document.getElementById("usernameInput").value.trim();
+    const password = document.getElementById("passwordInput").value;
+    const authMessage = document.getElementById("authMessage");
+
+    authMessage.textContent = "";
+
+    try {
+        const user = await registerUser(username, password);
+        setActiveUser(user);
+        showApp();
+        restoreProgressState();
+        renderClasses();
+        renderClass(currentClassId);
+        updateProgress();
+        authMessage.textContent = '';
+    } catch (err) {
+        authMessage.textContent = err.message;
+    }
+});
+
+document.getElementById("loginBtn").addEventListener("click", async () => {
+    const username = document.getElementById("usernameInput").value.trim();
+    const password = document.getElementById("passwordInput").value;
+    const authMessage = document.getElementById("authMessage");
+
+    authMessage.textContent = "";
+
+    try {
+        const user = await loginUser(username, password);
+        setActiveUser(user);
+        showApp();
+        restoreProgressState();
+        renderClasses();
+        renderClass(currentClassId);
+        updateProgress();
+    } catch (err) {
+        authMessage.textContent = err.message;
+    }
+});
+
+document.getElementById("switchUserBtn").addEventListener("click", () => {
+    localStorage.removeItem('userId');
+    localStorage.removeItem('username');
+    currentUserId = '';
+    currentUsername = '';
+    showRegisterForm(t('loginPrompt'));
+});
+
 document.getElementById("resetBtn").addEventListener("click", () => {
-    if (confirm("Нулирай целия прогрес?")) {
-        localStorage.removeItem(STORAGE_TASKS_KEY);
-        localStorage.removeItem(STORAGE_CURRENT_CLASS_KEY);
+    if (confirm(t('resetConfirm'))) {
+        localStorage.removeItem(getTasksStorageKey());
+        localStorage.removeItem(getCurrentClassStorageKey());
+        resetProgressInDB();
         currentClassId = 1;
         classes.forEach(c => c.completed = false);
         renderClasses();
         renderClass(1);
         updateProgress();
     }
+});
+
+document.getElementById('languageSelect').addEventListener('change', async (event) => {
+    await setLanguage(event.target.value);
 });
 
 initApp();

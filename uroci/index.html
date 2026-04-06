@@ -8,15 +8,36 @@
 </head>
 <body>
     <div class="container">
+        <section id="authSection" class="auth-section">
+            <h2 id="authTitle">Вход / Регистрация</h2>
+            <p id="authSubtitle">Влизане само с никнейм и парола. Данните и прогресът се записват в MongoDB Atlas.</p>
+            <form id="registerForm" class="auth-form">
+                <input id="usernameInput" type="text" placeholder="Потребителско име" required minlength="2">
+                <input id="passwordInput" type="password" placeholder="Парола (мин. 3 символа)" required minlength="3">
+                <button type="submit" id="registerBtn" class="btn-register" data-mode="register">Регистрация</button>
+                <button type="button" id="loginBtn" class="btn-register btn-login">Вход</button>
+            </form>
+            <div id="authMessage" class="auth-message"></div>
+        </section>
+
         <header>
             <h1>JavaScript Уроци</h1>
             <div class="header-info">
+                <select id="languageSelect" class="language-select" aria-label="Language selector">
+                    <option value="bg">BG</option>
+                    <option value="en">EN</option>
+                    <option value="ru">RU</option>
+                    <option value="de">DE</option>
+                    <option value="es">ES</option>
+                </select>
+                <span id="activeUser"></span>
                 <span id="userProgress">Прогрес: 0%</span>
+                <button id="switchUserBtn" class="btn-reset">Смени потребител</button>
                 <button id="resetBtn" class="btn-reset">Нулиране на прогреса</button>
             </div>
         </header>
 
-        <main>
+        <main id="appMain" class="hidden">
             <div class="sidebar">
                 <div class="classes-list" id="classesList"></div>
             </div>

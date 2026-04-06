@@ -13,6 +13,7 @@ app.use(express.static('.'));
 
 // Models
 const Progress = require('./models/Progress');
+const User = require('./models/User');
 
 // Свързване с MongoDB
 async function connectToDatabase() {
@@ -40,6 +41,78 @@ app.use(async (req, res, next) => {
 });
 
 // API Routes
+
+// Регистрация на нов потребител
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const normalizedUsername = String(username || '').trim();
+
+        if (!normalizedUsername || !password) {
+            return res.status(400).json({ error: 'username and password are required' });
+        }
+
+        if (password.length < 3) {
+            return res.status(400).json({ error: 'Password must be at least 3 characters long' });
+        }
+
+        const existingUser = await User.findOne({ username: normalizedUsername });
+
+        if (existingUser) {
+            return res.status(409).json({ error: 'User with this username already exists' });
+        }
+
+        const user = await User.create({
+            username: normalizedUsername,
+            password
+        });
+
+        // Инициализираме празен прогрес за нов потребител
+        await Progress.findOneAndUpdate(
+            { userId: user._id.toString() },
+            {
+                userId: user._id.toString(),
+                username: user.username,
+                completedLessons: [],
+                totalScore: 0,
+                currentLesson: 0,
+                lastUpdated: new Date()
+            },
+            { upsert: true, new: true }
+        );
+
+        res.status(201).json({
+            userId: user._id.toString(),
+            username: user.username
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Вход с никнейм и парола
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const normalizedUsername = String(username || '').trim();
+
+        if (!normalizedUsername || !password) {
+            return res.status(400).json({ error: 'username and password are required' });
+        }
+
+        const user = await User.findOne({ username: normalizedUsername });
+        if (!user || user.password !== password) {
+            return res.status(401).json({ error: 'Invalid username or password' });
+        }
+
+        res.json({
+            userId: user._id.toString(),
+            username: user.username
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Зареди прогреса на юзер
 app.get('/api/progress/:userId', async (req, res) => {
