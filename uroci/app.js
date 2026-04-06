@@ -699,6 +699,7 @@ function renderTask(task, cls) {
 function renderGradeSection(cls) {
     const section = document.createElement("div");
     section.className = "grade-section";
+    section.id = `grade-section-${cls.id}`;
     
     const grades = getClassGrades(cls.id);
     const avg = grades.length > 0 ? grades.reduce((a, b) => a + b) / grades.length : 0;
@@ -774,11 +775,24 @@ function checkTask(classId, taskId) {
             </div>
         `).join("");
         tests.classList.add("show");
-        
+
+        refreshCurrentClassProgress(classId);
         updateProgress();
     } catch (e) {
         res.innerHTML = "✗ Грешка: " + e.message;
         res.classList.add("error", "show");
+    }
+}
+
+function refreshCurrentClassProgress(classId) {
+    getUnlockedMaxClassId();
+    renderClasses();
+
+    const cls = classes.find(c => c.id === classId);
+    const currentGradeSection = document.querySelector('.grade-section');
+
+    if (cls && currentGradeSection) {
+        currentGradeSection.replaceWith(renderGradeSection(cls));
     }
 }
 
