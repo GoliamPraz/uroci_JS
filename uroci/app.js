@@ -539,7 +539,7 @@
 let currentClassId = 1;
 const STORAGE_TASKS_KEY = "tasks";
 const STORAGE_CURRENT_CLASS_KEY = "currentClassId";
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 const DEFAULT_USER_ID = localStorage.getItem('userId') || 'user_' + Math.random().toString(36).substr(2, 9);
 
 // MongoDB API Functions

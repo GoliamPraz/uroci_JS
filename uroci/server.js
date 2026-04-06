@@ -4,6 +4,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+let isConnected = false;
 
 // Middleware
 app.use(cors());
@@ -14,12 +15,29 @@ app.use(express.static('.'));
 const Progress = require('./models/Progress');
 
 // Свързване с MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
-.then(() => console.log('✓ Connected to MongoDB'))
-.catch(err => console.error('✗ MongoDB connection error:', err));
+async function connectToDatabase() {
+    if (isConnected) {
+        return;
+    }
+
+    if (!process.env.MONGODB_URI) {
+        throw new Error('MONGODB_URI is not set');
+    }
+
+    await mongoose.connect(process.env.MONGODB_URI);
+    isConnected = true;
+    console.log('✓ Connected to MongoDB');
+}
+
+app.use(async (req, res, next) => {
+    try {
+        await connectToDatabase();
+        next();
+    } catch (err) {
+        console.error('✗ MongoDB connection error:', err.message);
+        res.status(500).json({ error: 'Database connection failed' });
+    }
+});
 
 // API Routes
 
@@ -113,6 +131,18 @@ app.delete('/api/progress/:userId', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`✓ Server running on http://localhost:${PORT}`);
-});
+
+if (process.env.VERCEL !== '1') {
+    connectToDatabase()
+        .then(() => {
+            app.listen(PORT, () => {
+                console.log(`✓ Server running on http://localhost:${PORT}`);
+            });
+        })
+        .catch(err => {
+            console.error('✗ Failed to start server:', err.message);
+            process.exit(1);
+        });
+}
+
+module.exports = app;
