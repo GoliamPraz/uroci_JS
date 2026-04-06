@@ -537,21 +537,6 @@
 ];
 
 const TARGET_TASKS_PER_CLASS = 10;
-const TASK_VARIANT_LABELS = [
-    'Базова версия',
-    'Проверка с гранични случаи',
-    'По-строг вход',
-    'Практичен сценарий',
-    'Мини предизвикателство'
-];
-
-const TASK_VARIANT_NOTES = [
-    'Фокус: разбери основната идея и върни правилен резултат.',
-    'Фокус: помисли за краищата на задачата и нестандартни входове.',
-    'Фокус: пази логиката чиста и прави ясни проверки преди return.',
-    'Фокус: представи си, че задачата идва от реално приложение.',
-    'Фокус: реши задачата кратко, но четимо, без излишен код.'
-];
 
 function cloneDeep(value) {
     return JSON.parse(JSON.stringify(value));
@@ -580,80 +565,6 @@ function buildExpectedResultsPreview(task) {
         .join('\n');
 }
 
-function transformVariantValue(value, variantIndex, seed) {
-    if (typeof value === 'number') {
-        if (variantIndex === 0) return value;
-        if (variantIndex === 1) return value === 0 ? seed + 1 : -value;
-        if (variantIndex === 2) return value + seed + 1;
-        if (variantIndex === 3) return value * (seed % 2 === 0 ? 2 : 3);
-        return value - (seed + 1);
-    }
-
-    if (typeof value === 'string') {
-        if (variantIndex === 0) return value;
-        if (variantIndex === 1) return `${value} ${seed}`;
-        if (variantIndex === 2) return `${value}${seed}`;
-        if (variantIndex === 3) return `${value.toUpperCase()}${seed}`;
-        return `x${seed}_${value}`;
-    }
-
-    if (typeof value === 'boolean') {
-        if (variantIndex % 2 === 0) return value;
-        return !value;
-    }
-
-    if (Array.isArray(value)) {
-        const mapped = value.map((item, idx) => transformVariantValue(item, variantIndex, seed + idx));
-        if (variantIndex >= 3 && mapped.length > 0 && typeof mapped[0] === 'number') {
-            mapped.push(seed + mapped.length);
-        }
-        return mapped;
-    }
-
-    if (value && typeof value === 'object') {
-        const result = {};
-        Object.keys(value).forEach((key, idx) => {
-            result[key] = transformVariantValue(value[key], variantIndex, seed + idx);
-        });
-        return result;
-    }
-
-    return value;
-}
-
-function buildVariantTests(task, variantIndex, position) {
-    if (!Array.isArray(task.tests) || task.tests.length === 0 || variantIndex === 0) {
-        return cloneDeep(task.tests || []);
-    }
-
-    let referenceFn = null;
-    try {
-        referenceFn = eval('(' + task.solution + ')');
-    } catch (_) {
-        referenceFn = null;
-    }
-
-    if (typeof referenceFn !== 'function') {
-        return cloneDeep(task.tests);
-    }
-
-    const variantTests = [];
-
-    task.tests.forEach((test, testIndex) => {
-        const seed = position + testIndex;
-        const transformedInput = test.input.map((arg, argIndex) => transformVariantValue(cloneDeep(arg), variantIndex, seed + argIndex));
-
-        try {
-            const expected = referenceFn(...cloneDeep(transformedInput));
-            variantTests.push({ input: transformedInput, expected });
-        } catch (_) {
-            variantTests.push(cloneDeep(test));
-        }
-    });
-
-    return variantTests;
-}
-
 function getDifficultyByPosition(position, total) {
     const easyLimit = Math.ceil(total * 0.4);
     const mediumLimit = Math.ceil(total * 0.7);
@@ -663,36 +574,66 @@ function getDifficultyByPosition(position, total) {
     return 'hard';
 }
 
-function expandTasksToTen(tasks) {
-    const sourceTasks = tasks.map(task => cloneDeep(task));
-    const expanded = [];
-    const variantCount = TASK_VARIANT_LABELS.length;
+function expandTasksToTen(tasks, classId, allClassesSnapshot) {
+    const ownTasks = tasks.map(task => cloneDeep(task));
+    const globalPool = [];
 
-    for (let i = 0; i < TARGET_TASKS_PER_CLASS; i++) {
-        const base = sourceTasks[i % sourceTasks.length];
-        const task = cloneDeep(base);
-        const position = i + 1;
-        const variantIndex = Math.floor(i / sourceTasks.length) % variantCount;
-        const variantLabel = TASK_VARIANT_LABELS[variantIndex];
-        const variantNote = TASK_VARIANT_NOTES[variantIndex];
+    allClassesSnapshot.forEach((cls) => {
+        cls.tasks.forEach((task) => {
+            globalPool.push({
+                sourceClassName: cls.name,
+                task: cloneDeep(task)
+            });
+        });
+    });
+
+    const expanded = [];
+    const usedSignatures = new Set();
+    let cursor = ((classId - 1) * 7) % globalPool.length;
+    let guard = 0;
+
+    while (expanded.length < TARGET_TASKS_PER_CLASS && guard < globalPool.length * 3) {
+        const candidate = globalPool[cursor % globalPool.length];
+        const signatureKey = candidate.task.signature || candidate.task.title;
+
+        if (!usedSignatures.has(signatureKey)) {
+            usedSignatures.add(signatureKey);
+            expanded.push({
+                sourceClassName: candidate.sourceClassName,
+                task: cloneDeep(candidate.task)
+            });
+        }
+
+        cursor++;
+        guard++;
+    }
+
+    while (expanded.length < TARGET_TASKS_PER_CLASS) {
+        const base = ownTasks[expanded.length % ownTasks.length] || ownTasks[0];
+        expanded.push({ sourceClassName: null, task: cloneDeep(base) });
+    }
+
+    return expanded.map((item, index) => {
+        const position = index + 1;
+        const task = item.task;
 
         task.id = position;
         task.difficulty = getDifficultyByPosition(position, TARGET_TASKS_PER_CLASS);
         task.rating = Number((2 + ((position - 1) * (3.5 / (TARGET_TASKS_PER_CLASS - 1)))).toFixed(2));
-        task.title = `${base.title} - ${variantLabel}`;
-        task.description = `${base.description} ${variantNote}`;
-        task.hint = `${base.hint} | Вариант: ${variantLabel}`;
-        task.tests = buildVariantTests(base, variantIndex, position);
+        task.title = `${task.title} - Задача ${position}`;
+
+        if (item.sourceClassName && item.sourceClassName !== undefined) {
+            task.description = `${task.description} (Практика ${position}/${TARGET_TASKS_PER_CLASS})`;
+        }
+
         task.expectedResults = buildExpectedResultsPreview(task);
-
-        expanded.push(task);
-    }
-
-    return expanded;
+        return task;
+    });
 }
 
+const baseClassSnapshot = cloneDeep(classes);
 classes.forEach((cls) => {
-    cls.tasks = expandTasksToTen(cls.tasks);
+    cls.tasks = expandTasksToTen(cls.tasks, cls.id, baseClassSnapshot);
 });
 
 const baseClassesForTranslation = JSON.parse(JSON.stringify(classes));
