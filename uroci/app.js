@@ -639,7 +639,9 @@ classes.forEach((cls) => {
 const baseClassesForTranslation = JSON.parse(JSON.stringify(classes));
 
 let currentClassId = 1;
-const API_URL = '/api';
+const API_URL = (window.location.port === '5500' || window.location.port === '5501')
+    ? 'http://localhost:5000/api'
+    : '/api';
 let currentUserId = localStorage.getItem('userId') || '';
 let currentUsername = localStorage.getItem('username') || '';
 const taskHelpUsage = {};
