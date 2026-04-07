@@ -159,36 +159,44 @@ app.post('/api/progress', async (req, res) => {
     }
 });
 
-// Отметни задача като выполнена
+// Отметни задача като изпълнена
 app.post('/api/progress/:userId/complete-task', async (req, res) => {
     try {
-        const { lessonId, taskId, lessonTitle } = req.body;
+        const { lessonId, taskId, lessonTitle, grade, helpLevel } = req.body;
         const userId = req.params.userId;
-        
+
         let progress = await Progress.findOne({ userId });
-        
+
         if (!progress) {
             progress = new Progress({ userId, username: 'User' });
         }
-        
+
         const lesson = progress.completedLessons.find(l => l.lessonId === lessonId);
-        
+
         if (lesson) {
-            if (!lesson.completedTasks.includes(taskId)) {
-                lesson.completedTasks.push(taskId);
+            const existing = lesson.completedTasks.find(t => t.taskId === taskId);
+            if (existing) {
+                existing.grade = grade;
+                existing.helpLevel = helpLevel;
+                existing.passed = true;
+            } else {
+                lesson.completedTasks.push({ taskId, grade: grade || 0, helpLevel: helpLevel || 0, passed: true });
             }
         } else {
             progress.completedLessons.push({
                 lessonId,
                 title: lessonTitle,
-                completedTasks: [taskId],
+                completedTasks: [{ taskId, grade: grade || 0, helpLevel: helpLevel || 0, passed: true }],
                 completedDate: new Date()
             });
         }
-        
-        progress.totalScore = progress.completedLessons.reduce((sum, l) => sum + l.completedTasks.length * 10, 0);
+
+        progress.totalScore = progress.completedLessons.reduce(
+            (sum, l) => sum + l.completedTasks.reduce((s, t) => s + (t.grade || 0), 0), 0
+        );
         progress.lastUpdated = new Date();
-        
+
+        progress.markModified('completedLessons');
         await progress.save();
         res.json(progress);
     } catch (err) {

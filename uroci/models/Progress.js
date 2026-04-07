@@ -7,7 +7,14 @@ const progressSchema = new mongoose.Schema({
         {
             lessonId: Number,
             title: String,
-            completedTasks: [Number],
+            completedTasks: [
+                {
+                    taskId: Number,
+                    grade: { type: Number, default: 0 },
+                    helpLevel: { type: Number, default: 0 },
+                    passed: { type: Boolean, default: true }
+                }
+            ],
             completedDate: { type: Date, default: Date.now }
         }
     ],

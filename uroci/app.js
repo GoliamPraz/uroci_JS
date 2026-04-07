@@ -844,15 +844,32 @@ async function loadProgressFromDB() {
     try {
         const response = await fetch(`${API_URL}/progress/${currentUserId}`);
         const progress = await safeReadJson(response);
-        if (!progress) return [];
-        return progress.completedLessons || [];
+        if (!progress || !progress.completedLessons) return [];
+
+        // Попълни localStorage от MongoDB данните
+        const saved = JSON.parse(localStorage.getItem(getTasksStorageKey()) || '{}');
+        progress.completedLessons.forEach((lesson) => {
+            lesson.completedTasks.forEach((t) => {
+                // Поддържа и стария формат (просто число) и новия (обект)
+                const taskId = typeof t === 'object' ? t.taskId : t;
+                const grade = typeof t === 'object' ? (t.grade || 2) : 2;
+                const helpLevel = typeof t === 'object' ? (t.helpLevel || 0) : 0;
+                const key = lesson.lessonId + '-' + taskId;
+                if (!saved[key]) {
+                    saved[key] = { grade, passed: true, code: '', helpLevel };
+                }
+            });
+        });
+        localStorage.setItem(getTasksStorageKey(), JSON.stringify(saved));
+
+        return progress.completedLessons;
     } catch (err) {
         console.warn('MongoDB unavailable, using localStorage:', err.message);
         return [];
     }
 }
 
-async function saveProgressToDB(lessonId, taskId, lessonTitle) {
+async function saveProgressToDB(lessonId, taskId, lessonTitle, grade, helpLevel) {
     if (!currentUserId) return;
 
     try {
@@ -862,11 +879,12 @@ async function saveProgressToDB(lessonId, taskId, lessonTitle) {
             body: JSON.stringify({
                 lessonId,
                 taskId,
-                lessonTitle
+                lessonTitle,
+                grade: grade || 0,
+                helpLevel: helpLevel || 0
             })
         });
-        const result = await safeReadJson(response);
-        console.log('✓ Прогреса запазен в MongoDB:', result);
+        await safeReadJson(response);
     } catch (err) {
         console.warn('MongoDB save failed, using localStorage:', err.message);
     }
@@ -1282,7 +1300,7 @@ function checkTask(classId, taskId) {
             res.innerHTML = `${t('perfect')}: ${grade.toFixed(2)} (${t('usedHelp')}: ${helpLevel === 0 ? t('noHelp') : `${t('solution1').split(' ')[0]} ${helpLevel}`})`;
             res.classList.add("success", "show");
             document.getElementById("task-" + taskId).classList.add("completed");
-            saveProgressToDB(classId, taskId, cls.name);
+            saveProgressToDB(classId, taskId, cls.name, grade, helpLevel);
         } else {
             res.innerHTML = `✗ ${pass}/${task.tests.length} ${t('testsFail')}. ${t('accuracy')}: ${(avgSimilarity * 100).toFixed(0)}%. ${t('grade')}: ${grade.toFixed(2)} (${t('max')}: ${maxGrade.toFixed(2)})`;
             res.classList.add("error", "show");
